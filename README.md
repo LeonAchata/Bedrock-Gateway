@@ -21,9 +21,10 @@ El LLM Gateway actúa como **puente universal** entre workflows externos de IA y
 │  Agent A     │       │  Agent B     │       │  Agent C     │
 │  (nova-pro)  │       │  (claude)    │       │  (llama)     │
 └──────┬───────┘       └──────┬───────┘       └──────┬───────┘
-       │                      │                       │
-       │        MCP Protocol (stdio/SSE)              │
-       └──────────────────────┼───────────────────────┘
+       ▲                      ▲                      ▲ 
+       │                      │                      │
+       │        MCP Protocol (stdio/SSE)             │
+       └──────────────────────┼──────────────────────┘
                               ▼
                    ┌────────────────────┐
                    │   LLM Gateway      │
@@ -37,7 +38,7 @@ El LLM Gateway actúa como **puente universal** entre workflows externos de IA y
                    │  │   Metrics    │  │
                    │  └──────────────┘  │
                    └─────────┬──────────┘
-                             │
+                             ▲
               ┌──────────────┼──────────────┐
               │              │              │
               ▼              ▼              ▼
@@ -89,19 +90,11 @@ llm-gateway/
 ├── Dockerfile              # 🐳 Imagen Docker para producción
 ├── docker-compose.yml      # Despliegue fácil con Docker Compose
 ├── .dockerignore           # Exclusiones de build
-├── DOCKER_DEPLOYMENT.md    # 📖 Guía completa de Docker
 │
 ├── requirements.txt        # Dependencias del gateway
 ├── .env.example            # Template de variables de entorno
-├── mcp_config.example.json # Configuración MCP de ejemplo
-├── AGENT_EXAMPLES.md       # Ejemplos de configuración de agentes
 └── README.md               # Este archivo
-│
-├── requirements.txt
-├── .env.example
-├── mcp_config.example.json
-├── AGENT_EXAMPLES.md       # 🆕 Ejemplos de configuración
-└── README.md
+
 ```
 
 ## 🚀 Instalación
@@ -232,8 +225,6 @@ response = await session.call_tool(
     }
 )
 ```
-
-**Ver más ejemplos:** [AGENT_EXAMPLES.md](AGENT_EXAMPLES.md)
 
 ### Ejemplo completo desde un agente (Python)
 
@@ -474,13 +465,6 @@ docker run -d \
 - ✅ Resource limits (CPU/memoria)
 - ✅ Compatible con Docker Compose y Kubernetes
 
-**📖 Guía completa:** Ver [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) para:
-- Configuración avanzada
-- Escalado horizontal
-- Monitoreo y debugging
-- Despliegue en producción (ECS/Fargate)
-- Troubleshooting completo
-
 ## 🎯 Integración con Agentes LangGraph
 
 ### Quick Start
@@ -511,25 +495,4 @@ result = await app.ainvoke({
 print(result["response"])
 ```
 
-### Contenido de ParaAgente/
-
-- **`bedrock_client.py`**: Cliente MCP (stdio) para el gateway
-- **`llm_node.py`**: Nodo reutilizable de LangGraph
-- **`example_agent.py`**: 5 ejemplos completos
-- **`README.md`**: Guía de integración detallada
-
-**📖 Documentación completa:** Ver [ParaAgente/README.md](ParaAgente/README.md)
-
-## 🆘 Soporte
-
-Para problemas o preguntas:
-1. Ver ejemplos en [AGENT_EXAMPLES.md](AGENT_EXAMPLES.md)
-2. Ver integración con LangGraph en [ParaAgente/README.md](ParaAgente/README.md)
-3. Ver despliegue Docker en [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
-4. Revisar logs con `LOG_LEVEL=DEBUG`
-5. Verificar credenciales AWS en `.env`
-6. Crear un issue en el repositorio
-
----
-
-**Nota**: Este es un servidor MCP puro. No expone endpoints REST. Los agentes deben conectarse usando el protocolo MCP (stdio o SSE).
+Autor: Leon Achata
