@@ -79,6 +79,24 @@ llm-gateway/
 │       ├── validators.py   # Validaciones
 │       └── __init__.py
 │
+├── ParaAgente/             # 🎯 Integración para agentes LangGraph
+│   ├── bedrock_client.py   # Cliente MCP (stdio)
+│   ├── llm_node.py         # Nodo reutilizable LangGraph
+│   ├── example_agent.py    # 5 ejemplos completos
+│   ├── requirements.txt    # Dependencias del agente
+│   └── README.md           # Guía de integración
+│
+├── Dockerfile              # 🐳 Imagen Docker para producción
+├── docker-compose.yml      # Despliegue fácil con Docker Compose
+├── .dockerignore           # Exclusiones de build
+├── DOCKER_DEPLOYMENT.md    # 📖 Guía completa de Docker
+│
+├── requirements.txt        # Dependencias del gateway
+├── .env.example            # Template de variables de entorno
+├── mcp_config.example.json # Configuración MCP de ejemplo
+├── AGENT_EXAMPLES.md       # Ejemplos de configuración de agentes
+└── README.md               # Este archivo
+│
 ├── requirements.txt
 ├── .env.example
 ├── mcp_config.example.json
@@ -416,13 +434,101 @@ Edita `src/models/bedrock_models.py` y agrega el modelo al diccionario `BEDROCK_
 )
 ```
 
+## 🐳 Despliegue con Docker
+
+### Quick Start Local
+
+```bash
+# 1. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus AWS credentials
+
+# 2. Build y run con Docker Compose
+docker-compose up -d
+
+# 3. Ver logs
+docker-compose logs -f
+```
+
+### Build Manual
+
+```bash
+# Build de la imagen
+docker build -t bedrock-gateway:latest .
+
+# Run con variables de entorno
+docker run -d \
+  -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+  -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+  -e AWS_REGION=us-east-1 \
+  -e CACHE_ENABLED=true \
+  bedrock-gateway:latest
+```
+
+### Características Docker
+
+- ✅ Multi-stage build (imagen optimizada ~150MB)
+- ✅ Usuario no-root (seguridad)
+- ✅ Volúmenes persistentes para logs
+- ✅ Health checks configurables
+- ✅ Resource limits (CPU/memoria)
+- ✅ Compatible con Docker Compose y Kubernetes
+
+**📖 Guía completa:** Ver [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) para:
+- Configuración avanzada
+- Escalado horizontal
+- Monitoreo y debugging
+- Despliegue en producción (ECS/Fargate)
+- Troubleshooting completo
+
+## 🎯 Integración con Agentes LangGraph
+
+### Quick Start
+
+La carpeta `ParaAgente/` contiene todo lo necesario:
+
+```bash
+# 1. Instalar dependencias del agente
+cd ParaAgente
+pip install -r requirements.txt
+
+# 2. Usar el nodo LLM en tu grafo
+from llm_node import AgentState, llm_consultation_node
+from langgraph.graph import StateGraph, END
+
+workflow = StateGraph(AgentState)
+workflow.add_node("llm", llm_consultation_node)
+workflow.set_entry_point("llm")
+workflow.add_edge("llm", END)
+
+app = workflow.compile()
+
+# 3. Ejecutar
+result = await app.ainvoke({
+    "messages": [{"role": "user", "content": "Hola"}],
+    "model": "nova-pro"
+})
+print(result["response"])
+```
+
+### Contenido de ParaAgente/
+
+- **`bedrock_client.py`**: Cliente MCP (stdio) para el gateway
+- **`llm_node.py`**: Nodo reutilizable de LangGraph
+- **`example_agent.py`**: 5 ejemplos completos
+- **`README.md`**: Guía de integración detallada
+
+**📖 Documentación completa:** Ver [ParaAgente/README.md](ParaAgente/README.md)
+
 ## 🆘 Soporte
 
 Para problemas o preguntas:
 1. Ver ejemplos en [AGENT_EXAMPLES.md](AGENT_EXAMPLES.md)
-2. Revisar logs con `LOG_LEVEL=DEBUG`
-3. Verificar credenciales AWS en `.env`
-4. Crear un issue en el repositorio
+2. Ver integración con LangGraph en [ParaAgente/README.md](ParaAgente/README.md)
+3. Ver despliegue Docker en [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+4. Revisar logs con `LOG_LEVEL=DEBUG`
+5. Verificar credenciales AWS en `.env`
+6. Crear un issue en el repositorio
 
 ---
 

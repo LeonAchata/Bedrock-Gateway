@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  bedrock-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bedrock-gateway:latest
+    container_name: bedrock-gateway
+    
+    # Variables de entorno
+    environment:
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - CACHE_ENABLED=${CACHE_ENABLED:-true}
+      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
+    # Archivo .env (alternativa a environment)
+    env_file:
+      - .env
+    
+    # Volúmenes para persistencia de logs
+    volumes:
+      - ./logs:/logs
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Resource limits (opcional)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Opcional: Network personalizada
+networks:
+  default:
+    name: bedrock-gateway-network
+    driver: bridge
+
+# Opcional: Volumen persistente para logs
+volumes:
+  logs:
+    driver: local
