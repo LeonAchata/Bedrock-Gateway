@@ -1,24 +1,4 @@
-# ============================================
-# Dockerfile para Bedrock Gateway (Producción)
-# ============================================
-# 
-# Este Dockerfile crea una imagen optimizada para
-# ejecutar el Bedrock Gateway en producción.
-#
-# Build:
-#   docker build -t bedrock-gateway:latest .
-#
-# Run:
-#   docker run -p 8000:8000 \
-#     -e AWS_ACCESS_KEY_ID=your_key \
-#     -e AWS_SECRET_ACCESS_KEY=your_secret \
-#     -e AWS_REGION=us-east-1 \
-#     bedrock-gateway:latest
-
-# ============================================
-# Stage 1: Builder
-# ============================================
-FROM python:3.11-slim as builder
+FROM python:3.13-slim as builder
 
 # Metadatos
 LABEL maintainer="your-email@example.com"
@@ -48,7 +28,7 @@ RUN pip install --upgrade pip && \
 # ============================================
 # Stage 2: Runtime
 # ============================================
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Variables de entorno
 ENV PYTHONUNBUFFERED=1 \
@@ -64,7 +44,7 @@ RUN useradd -m -u 1000 gateway && \
     chown -R gateway:gateway /app /logs
 
 # Copiar dependencias desde builder
-COPY --from=builder --chown=gateway:gateway /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder --chown=gateway:gateway /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder --chown=gateway:gateway /usr/local/bin /usr/local/bin
 
 # Establecer directorio de trabajo
