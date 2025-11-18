@@ -5,6 +5,17 @@ allowing external AI workflows and agents to communicate with various LLM provid
 (primarily AWS Bedrock) through a standardized interface.
 """
 
+import sys
+import io
+
+# Configurar UTF-8 para Windows
+if sys.platform == "win32":
+    # Asegurar que stdout use UTF-8 para el protocolo MCP
+    if hasattr(sys.stdout, 'buffer'):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    if hasattr(sys.stdin, 'buffer'):
+        sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
+
 from typing import List, Dict, Any
 from fastmcp import FastMCP
 

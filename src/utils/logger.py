@@ -29,8 +29,9 @@ def setup_logger(
     
     # Avoid duplicate handlers
     if not logger.handlers:
-        # Console handler
-        console_handler = logging.StreamHandler(sys.stdout)
+        # Para MCP stdio, escribir logs a stderr (no stdout)
+        # stdout está reservado para mensajes JSON del protocolo MCP
+        console_handler = logging.StreamHandler(sys.stderr)
         console_handler.setLevel(getattr(logging, level.upper()))
         
         # Formatter
