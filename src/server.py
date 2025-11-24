@@ -3,20 +3,13 @@
 This server exposes LLM capabilities through the Model Context Protocol (MCP),
 allowing external AI workflows and agents to communicate with various LLM providers
 (primarily AWS Bedrock) through a standardized interface.
+
+Production deployment uses FastAPI + HTTP/SSE transport for remote access.
 """
 
-import sys
-import io
-
-# Configurar UTF-8 para Windows
-if sys.platform == "win32":
-    # Asegurar que stdout use UTF-8 para el protocolo MCP
-    if hasattr(sys.stdout, 'buffer'):
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    if hasattr(sys.stdin, 'buffer'):
-        sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
-
 from typing import List, Dict, Any
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastmcp import FastMCP
 
 from .config import settings
@@ -136,24 +129,56 @@ async def get_stats() -> Dict[str, Any]:
     return stats
 
 
+# Create FastAPI application
+app = FastAPI(
+    title="Bedrock Gateway",
+    description="MCP server for AWS Bedrock foundation models",
+    version="1.0.0"
+)
+
+# Configure CORS for production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configurar según necesidades de seguridad
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/")
+async def root():
+    """Health check endpoint."""
+    return {
+        "service": "Bedrock Gateway",
+        "status": "running",
+        "transport": "HTTP/SSE",
+        "protocol": "MCP",
+        "models": len(BEDROCK_MODELS)
+    }
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint for container orchestration."""
+    return {"status": "healthy"}
+
+
+# Mount FastMCP as ASGI app on /mcp route
+mcp_asgi_app = mcp.get_asgi_app()
+app.mount("/mcp", mcp_asgi_app)
+
+
 # Startup event
-def run_server():
-    """Run the MCP server.
-    
-    This function initializes and starts the FastMCP server, making it
-    available for connections from MCP clients (agents/workflows).
-    """
+@app.on_event("startup")
+async def startup_event():
+    """Log startup information."""
     logger.info("=" * 60)
     logger.info("LLM Gateway (MCP) starting up...")
+    logger.info(f"Transport: HTTP/SSE (Production)")
     logger.info(f"Cache enabled: {settings.CACHE_ENABLED}")
     logger.info(f"Metrics enabled: {settings.METRICS_ENABLED}")
     logger.info(f"Available Bedrock models: {len(BEDROCK_MODELS)}")
     logger.info(f"Registered tools: generate, list_models, get_stats")
+    logger.info(f"MCP endpoint: /mcp/sse")
     logger.info("=" * 60)
-    
-    # Run the MCP server
-    mcp.run()
-
-
-if __name__ == "__main__":
-    run_server()

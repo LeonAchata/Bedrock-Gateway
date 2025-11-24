@@ -58,15 +58,15 @@ COPY --chown=gateway:gateway README.md .
 # Cambiar a usuario no-root
 USER gateway
 
-# Healthcheck (opcional - descomentar si agregas endpoint HTTP)
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#   CMD python -c "import sys; sys.exit(0)"
+# Healthcheck para verificar el estado del servicio
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-# Exponer puerto (si usas SSE transport en el futuro)
-# EXPOSE 8000
+# Exponer puerto HTTP
+EXPOSE 8000
 
-# Comando por defecto: ejecutar el MCP server
-CMD ["python", "-m", "src.server"]
+# Comando por defecto: ejecutar con uvicorn para producción
+CMD ["uvicorn", "src.server:app", "--host", "0.0.0", "--port", "8000"]
 
 # ============================================
 # Notas de Uso:

@@ -1,6 +1,10 @@
 # MCP Framework
 fastmcp==2.13.1
 
+# FastAPI & ASGI Server (Production)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
 # Core dependencies
 pydantic==2.12.4
 pydantic-settings==2.12.0

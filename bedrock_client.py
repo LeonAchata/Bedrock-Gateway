@@ -1,7 +1,7 @@
 """Cliente MCP para comunicación con Bedrock Gateway.
 
 Este cliente se conecta al Bedrock Gateway usando el protocolo MCP
-sobre stdio, permitiendo a agentes de LangGraph acceder a múltiples
+sobre HTTP/SSE, permitiendo a agentes remotos acceder a múltiples
 modelos de Bedrock de forma transparente.
 """
 
@@ -12,8 +12,8 @@ from contextlib import asynccontextmanager
 
 # Intentar importar MCP SDK
 try:
-    from mcp import ClientSession, StdioServerParameters
-    from mcp.client.stdio import stdio_client
+    from mcp import ClientSession, SSEServerParameters
+    from mcp.client.sse import sse_client
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -23,15 +23,17 @@ logger = logging.getLogger(__name__)
 
 
 class BedrockGatewayClient:
-    """Cliente para comunicación con Bedrock Gateway vía MCP.
+    """Cliente para comunicación con Bedrock Gateway vía MCP sobre HTTP/SSE.
     
-    Este cliente maneja la conexión con el gateway y proporciona
-    métodos simples para generar completions con cualquier modelo
+    Este cliente se conecta al gateway remoto usando SSE (Server-Sent Events)
+    y proporciona métodos simples para generar completions con cualquier modelo
     de Bedrock.
     
     Uso:
         ```python
-        async with BedrockGatewayClient() as client:
+        async with BedrockGatewayClient(
+            gateway_url="https://tu-gateway.com"
+        ) as client:
             response = await client.generate(
                 model="nova-pro",
                 messages=[{"role": "user", "content": "Hola"}]
@@ -42,60 +44,25 @@ class BedrockGatewayClient:
     
     def __init__(
         self,
-        gateway_command: str = "python",
-        gateway_args: list[str] = None,
-        gateway_env: Dict[str, str] = None,
-        gateway_cwd: str = None
+        gateway_url: str = "http://localhost:8000",
+        api_key: Optional[str] = None,
+        timeout: int = 300
     ):
         """Inicializar cliente MCP.
         
         Args:
-            gateway_command: Comando para ejecutar el gateway (default: "python")
-            gateway_args: Argumentos del comando (default: ["-m", "src.server"])
-            gateway_env: Variables de entorno para el gateway (credentials AWS)
-            gateway_cwd: Directorio de trabajo para ejecutar el gateway
+            gateway_url: URL base del gateway (default: "http://localhost:8000")
+            api_key: API key para autenticación (opcional)
+            timeout: Timeout en segundos para las solicitudes (default: 300)
         """
         if not MCP_AVAILABLE:
             raise ImportError(
                 "MCP SDK is required. Install with: pip install mcp"
             )
         
-        self.gateway_command = gateway_command
-        self.gateway_args = gateway_args or ["-m", "src.server"]
-        
-        # Cargar variables de entorno del .env si no se especifican
-        if gateway_env is None:
-            import os
-            from dotenv import load_dotenv
-            
-            # Obtener directorio raíz del proyecto
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(current_dir)
-            env_path = os.path.join(project_root, '.env')
-            
-            # Cargar .env
-            if os.path.exists(env_path):
-                load_dotenv(env_path)
-            
-            # Obtener credenciales AWS del entorno
-            gateway_env = {
-                'AWS_ACCESS_KEY_ID': os.getenv('AWS_ACCESS_KEY_ID', ''),
-                'AWS_SECRET_ACCESS_KEY': os.getenv('AWS_SECRET_ACCESS_KEY', ''),
-                'AWS_REGION': os.getenv('AWS_REGION', 'us-east-1'),
-                'CACHE_ENABLED': os.getenv('CACHE_ENABLED', 'true'),
-                'METRICS_ENABLED': os.getenv('METRICS_ENABLED', 'true'),
-                'LOG_LEVEL': os.getenv('LOG_LEVEL', 'INFO')
-            }
-        
-        self.gateway_env = gateway_env
-        
-        # Si no se especifica cwd, usar el directorio raíz del proyecto
-        if gateway_cwd is None:
-            import os
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            self.gateway_cwd = os.path.dirname(current_dir)  # Directorio raíz
-        else:
-            self.gateway_cwd = gateway_cwd
+        self.gateway_url = gateway_url.rstrip("/")
+        self.api_key = api_key
+        self.timeout = timeout
         
         self.session: Optional[ClientSession] = None
         self._read = None
@@ -104,46 +71,42 @@ class BedrockGatewayClient:
         
         logger.info(
             f"BedrockGatewayClient initialized - "
-            f"Command: {gateway_command} {' '.join(self.gateway_args)}"
+            f"Gateway URL: {self.gateway_url}"
         )
     
     async def connect(self):
-        """Conectar al Bedrock Gateway."""
+        """Conectar al Bedrock Gateway vía HTTP/SSE."""
         try:
-            logger.info("Connecting to Bedrock Gateway...")
+            logger.info(f"Connecting to Bedrock Gateway at {self.gateway_url}...")
             
-            # Crear parámetros del servidor
-            server_params = StdioServerParameters(
-                command=self.gateway_command,
-                args=self.gateway_args,
-                env={**self.gateway_env, "PYTHONPATH": self.gateway_cwd}
+            # Construir headers con autenticación si se proporciona
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            
+            # Crear parámetros del servidor SSE
+            server_params = SSEServerParameters(
+                url=f"{self.gateway_url}/mcp/sse",
+                headers=headers if headers else None,
+                timeout=self.timeout
             )
             
-            # Cambiar al directorio del proyecto antes de conectar
-            import os
-            original_cwd = os.getcwd()
-            os.chdir(self.gateway_cwd)
+            # Conectar al gateway vía SSE
+            self._client_context = sse_client(server_params)
+            self._read, self._write = await self._client_context.__aenter__()
             
-            try:
-                # Conectar al gateway vía stdio
-                self._client_context = stdio_client(server_params)
-                self._read, self._write = await self._client_context.__aenter__()
-                
-                # Crear sesión MCP
-                self.session = ClientSession(self._read, self._write)
-                await self.session.__aenter__()
-                
-                # Inicializar sesión
-                await self.session.initialize()
-                
-                logger.info("Connected to Bedrock Gateway successfully")
-                
-                # Obtener lista de modelos disponibles
-                models = await self.list_models()
-                logger.info(f"Available models: {len(models)}")
-            finally:
-                # Restaurar directorio original
-                os.chdir(original_cwd)
+            # Crear sesión MCP
+            self.session = ClientSession(self._read, self._write)
+            await self.session.__aenter__()
+            
+            # Inicializar sesión
+            await self.session.initialize()
+            
+            logger.info("Connected to Bedrock Gateway successfully")
+            
+            # Obtener lista de modelos disponibles
+            models = await self.list_models()
+            logger.info(f"Available models: {len(models)}")
             
         except Exception as e:
             logger.error(f"Failed to connect to gateway: {str(e)}")
